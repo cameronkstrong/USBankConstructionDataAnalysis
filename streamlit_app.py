@@ -18,9 +18,9 @@ BANKS = banks_data.to_dict(orient="records")
 # Streamlit app
 st.title("Bank Construction Loan Analysis")
 
-# Region selection (new filter)
+# Region selection (default: Northeast)
 regions = sorted(banks_data["region"].dropna().unique())
-selected_region = st.selectbox("Select Region", ["All"] + regions)
+selected_region = st.selectbox("Select Region", ["All"] + regions, index=(["All"] + regions).index("Northeast"))
 
 # Filter states based on selected region
 if selected_region == "All":
@@ -28,9 +28,9 @@ if selected_region == "All":
 else:
     filtered_states = banks_data[banks_data["region"] == selected_region]["state"].unique()
 
-# State selection (optional, with "All" option)
+# State selection (default: Maine)
 states = ["All"] + sorted(filtered_states)
-selected_state = st.selectbox("Select State", states)
+selected_state = st.selectbox("Select State", states, index=states.index("ME") if "ME" in states else 0)
 
 # County selection (filtered by state if selected, or by region)
 if selected_state == "All":
