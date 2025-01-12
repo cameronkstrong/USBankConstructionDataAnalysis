@@ -166,7 +166,6 @@ if st.session_state.analysis_results is not None:
     df = st.session_state.analysis_results
     st.write("### Analysis Results")
     st.write("*Note: All amounts are presented in ones ($).*")
-    st.dataframe(df)
 
     # Pie chart visualization for construction loans
     st.write("### Construction Loans Distribution")
@@ -186,12 +185,17 @@ if st.session_state.analysis_results is not None:
     except Exception as e:
         st.error(f"Error creating the pie chart: {e}")
 
-    # Top 10 lenders table
+        # Top 10 lenders table
     st.write("### Top 10 Lenders by Loan Size")
     try:
         df_filtered = df[df[st.session_state.chart_option].apply(lambda x: isinstance(x, (int, float)))].copy()
-        top_10 = df_filtered[["Bank Name", st.session_state.chart_option]].sort_values(by=st.session_state.chart_option, ascending=False).head(10).reset_index(drop=True)
-        top_10.insert(0, "Rank", range(1, len(top_10) + 1))  # Add Rank column
+        top_10 = df_filtered[["Bank Name", st.session_state.chart_option]].sort_values(
+            by=st.session_state.chart_option, ascending=False
+        ).head(10).reset_index(drop=True)
+        
+        # Adjust the index to start at 1
+        top_10.index += 1
+        
         st.write(f"Top 10 Lenders for {st.session_state.chart_option}")
         st.dataframe(top_10, use_container_width=True)
     except Exception as e:
