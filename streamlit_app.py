@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st
 import pandas as pd
 from ffiec_data_connect import credentials, ffiec_connection, methods
 import plotly.express as px  # For pie chart visualization
@@ -91,77 +91,72 @@ filtered_banks = [
     and (selected_city == "All" or bank["city"] == selected_city)
 ]
 
-# Display filtered banks count
-st.write(f"### Selected Banks ({len(filtered_banks)} total)")
-
-# Hide the table unless the analysis is run
-if st.session_state.get("show_selected_banks", False):
-    st.dataframe(pd.DataFrame(filtered_banks))
-
-# Preserve results in session state
-def run_analysis():
-    # Initialize FFIEC connection
-    creds = credentials.WebserviceCredentials(username=USERNAME, password=PASSWORD)
-    conn = ffiec_connection.FFIECConnection()
-
-    results = []
-    for bank in filtered_banks:
-        try:
-            time_series = methods.collect_data(
-                session=conn,
-                creds=creds,
-                rssd_id=bank["rssd_id"],
-                reporting_period=reporting_period,
-                series="call"
-            )
-
-            # Filter for RCONF158 and RCONF159
-            rconf158_data = next((item for item in time_series if item.get("mdrm") == "RCONF158"), None)
-            rconf159_data = next((item for item in time_series if item.get("mdrm") == "RCONF159"), None)
-
-            # Extract values
-            rconf158_value = (rconf158_data.get("int_data", 0) * 1000) if rconf158_data else 0
-            rconf159_value = (rconf159_data.get("int_data", 0) * 1000) if rconf159_data else 0
-            total_construction_loans = rconf158_value + rconf159_value
-
-            results.append({
-                "Bank Name": bank["name"],
-                "City": bank["city"],
-                "State": bank["state"],
-                "County": bank["county"],
-                "1-4 Family Residential Construction Loans ($)": rconf158_value,
-                "Other Construction and Land Development Loans ($)": rconf159_value,
-                "Total Construction Loans ($)": total_construction_loans,
-            })
-        except Exception as e:
-            st.error(f"Error analyzing {bank['name']}: {e}")
-            results.append({
-                "Bank Name": bank["name"],
-                "City": bank["city"],
-                "State": bank["state"],
-                "County": bank["county"],
-                "1-4 Family Residential Construction Loans ($)": "Error",
-                "Other Construction and Land Development Loans ($)": "Error",
-                "Total Construction Loans ($)": "Error",
-            })
-
-    return pd.DataFrame(results)
-
-if "analysis_results" not in st.session_state:
-    st.session_state.analysis_results = None
+# Manage session state for table display
 if "show_selected_banks" not in st.session_state:
     st.session_state.show_selected_banks = False
+if "analysis_results" not in st.session_state:
+    st.session_state.analysis_results = None
 if "chart_option" not in st.session_state:
     st.session_state.chart_option = "Total Construction Loans ($)"
 
+# Run Analysis button
 if st.button("Run Analysis"):
     if not filtered_banks:
         st.warning("No banks match the selected filters.")
     else:
         st.session_state.show_selected_banks = True
-        st.session_state.analysis_results = run_analysis()
+        creds = credentials.WebserviceCredentials(username=USERNAME, password=PASSWORD)
+        conn = ffiec_connection.FFIECConnection()
 
-# Display results
+        results = []
+        for bank in filtered_banks:
+            try:
+                time_series = methods.collect_data(
+                    session=conn,
+                    creds=creds,
+                    rssd_id=bank["rssd_id"],
+                    reporting_period=reporting_period,
+                    series="call"
+                )
+
+                # Filter for RCONF158 and RCONF159
+                rconf158_data = next((item for item in time_series if item.get("mdrm") == "RCONF158"), None)
+                rconf159_data = next((item for item in time_series if item.get("mdrm") == "RCONF159"), None)
+
+                # Extract values
+                rconf158_value = (rconf158_data.get("int_data", 0) * 1000) if rconf158_data else 0
+                rconf159_value = (rconf159_data.get("int_data", 0) * 1000) if rconf159_data else 0
+                total_construction_loans = rconf158_value + rconf159_value
+
+                results.append({
+                    "Bank Name": bank["name"],
+                    "City": bank["city"],
+                    "State": bank["state"],
+                    "County": bank["county"],
+                    "1-4 Family Residential Construction Loans ($)": rconf158_value,
+                    "Other Construction and Land Development Loans ($)": rconf159_value,
+                    "Total Construction Loans ($)": total_construction_loans,
+                })
+            except Exception as e:
+                st.error(f"Error analyzing {bank['name']}: {e}")
+                results.append({
+                    "Bank Name": bank["name"],
+                    "City": bank["city"],
+                    "State": bank["state"],
+                    "County": bank["county"],
+                    "1-4 Family Residential Construction Loans ($)": "Error",
+                    "Other Construction and Land Development Loans ($)": "Error",
+                    "Total Construction Loans ($)": "Error",
+                })
+
+        st.session_state.analysis_results = pd.DataFrame(results)
+
+# Only show the Selected Banks table if the analysis is not yet run
+if st.session_state.show_selected_banks and st.session_state.analysis_results is None:
+    st.write(f"### Selected Banks ({len(filtered_banks)} total)")
+    st.dataframe(pd.DataFrame(filtered_banks))
+
+# Display analysis results
 if st.session_state.analysis_results is not None:
     df = st.session_state.analysis_results
     st.write("### Analysis Results")
@@ -185,17 +180,14 @@ if st.session_state.analysis_results is not None:
     except Exception as e:
         st.error(f"Error creating the pie chart: {e}")
 
-        # Top 10 lenders table
+    # Top 10 lenders table
     st.write("### Top 10 Lenders by Loan Size")
     try:
         df_filtered = df[df[st.session_state.chart_option].apply(lambda x: isinstance(x, (int, float)))].copy()
         top_10 = df_filtered[["Bank Name", st.session_state.chart_option]].sort_values(
             by=st.session_state.chart_option, ascending=False
         ).head(10).reset_index(drop=True)
-        
-        # Adjust the index to start at 1
-        top_10.index += 1
-        
+        top_10.index += 1  # Adjust the index to start at 1
         st.write(f"Top 10 Lenders for {st.session_state.chart_option}")
         st.dataframe(top_10, use_container_width=True)
     except Exception as e:
